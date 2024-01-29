@@ -1,7 +1,8 @@
 import { Platform } from 'react-native';
 
 const IS_ANDROID = Platform.OS === 'android';
-
+const IS_HARMONY = Platform.OS === 'harmony';
+const IS_HARMONY_OR_ANDROID = IS_ANDROID || IS_HARMONY
 // Get scroll interpolator's input range from an array of slide indexes
 // Indexes are relative to the current active slide (index 0)
 // For example, using [3, 2, 1, 0, -1] will return:
@@ -114,7 +115,7 @@ export function shiftAnimatedStyles (index, animatedValue, carouselProps) {
 // This means that the item with the higher zIndex (and therefore the tap receiver) remains the one AFTER the currently active item
 // The `elevation` property compensates for that only visually, which is not good enough
 export function stackScrollInterpolator (index, carouselProps) {
-    const range = IS_ANDROID ?
+    const range = IS_HARMONY_OR_ANDROID ?
         [1, 0, -1, -2, -3] :
         [3, 2, 1, 0, -1];
     const inputRange = getInputRangeFromIndexes(range, index, carouselProps);
@@ -137,14 +138,14 @@ export function stackAnimatedStyles (index, animatedValue, carouselProps, cardOf
         const edgeAlignment = Math.round((sizeRef - (sizeRef * scale)) / 2);
         const offset = Math.round(cardOffset * Math.abs(cardIndex) / scale);
 
-        return IS_ANDROID ?
+        return IS_HARMONY_OR_ANDROID ?
             centeredPosition - edgeAlignment - offset :
             centeredPosition + edgeAlignment + offset;
     };
 
     const opacityOutputRange = carouselProps.inactiveSlideOpacity === 1 ? [1, 1, 1, 0] : [1, 0.75, 0.5, 0];
 
-    return IS_ANDROID ? {
+    return IS_HARMONY_OR_ANDROID ? {
         // elevation: carouselProps.data.length - index, // fix zIndex bug visually, but not from a logic point of view
         opacity: animatedValue.interpolate({
             inputRange: [-3, -2, -1, 0],
@@ -205,7 +206,7 @@ export function stackAnimatedStyles (index, animatedValue, carouselProps, cardOf
 // This means that the item with the higher zIndex (and therefore the tap receiver) remains the one AFTER the currently active item
 // The `elevation` property compensates for that only visually, which is not good enough
 export function tinderScrollInterpolator (index, carouselProps) {
-    const range = IS_ANDROID ?
+    const range = IS_HARMONY_OR_ANDROID ?
         [1, 0, -1, -2, -3] :
         [3, 2, 1, 0, -1];
     const inputRange = getInputRangeFromIndexes(range, index, carouselProps);
@@ -222,7 +223,7 @@ export function tinderAnimatedStyles (index, animatedValue, carouselProps, cardO
     const card2Scale = 0.92;
     const card3Scale = 0.88;
 
-    const peekingCardsOpacity = IS_ANDROID ? 0.92 : 1;
+    const peekingCardsOpacity = IS_HARMONY_OR_ANDROID ? 0.92 : 1;
 
     cardOffset = !cardOffset && cardOffset !== 0 ? 9 : cardOffset;
 
@@ -235,7 +236,7 @@ export function tinderAnimatedStyles (index, animatedValue, carouselProps, cardO
         return Math.round(cardOffset * Math.abs(cardIndex) / scale);
     };
 
-    return IS_ANDROID ? {
+    return IS_HARMONY_OR_ANDROID ? {
         // elevation: carouselProps.data.length - index, // fix zIndex bug visually, but not from a logic point of view
         opacity: animatedValue.interpolate({
             inputRange: [-3, -2, -1, 0, 1],

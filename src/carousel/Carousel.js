@@ -1,5 +1,6 @@
 import React, { Component } from 'react';
-import { Animated, Easing, FlatList, I18nManager, Platform, ScrollView, View, ViewPropTypes } from 'react-native';
+import { Animated, Easing, FlatList, I18nManager, Platform, ScrollView, View } from 'react-native';
+import { ViewPropTypes} from 'deprecated-react-native-prop-types';
 import PropTypes from 'prop-types';
 import shallowCompare from 'react-addons-shallow-compare';
 import {
@@ -411,7 +412,6 @@ export default class Carousel extends Component {
         if (!dataLength) {
             return 0;
         }
-
         return this._enableLoop() ? dataLength + (2 * loopClonesPerSide) : dataLength;
     }
 
