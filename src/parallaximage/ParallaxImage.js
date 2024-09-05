@@ -85,8 +85,8 @@ export default class ParallaxImage extends Component {
 
             if (carouselRef) {
                 this._container.measureLayout(
-                    findNodeHandle(carouselRef),
-                    (x, y, width, height, pageX, pageY) => {
+                    this._container,
+                    (x, y, width, height) => {
                         const offset = vertical ?
                             y - ((sliderHeight - itemHeight) / 2) :
                             x - ((sliderWidth - itemWidth) / 2);
