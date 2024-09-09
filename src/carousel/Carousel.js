@@ -916,7 +916,8 @@ export default class Carousel extends Component {
             return;
         }
 
-        if (this._currentContentOffset === this._scrollEndOffset) {
+        // 修复 第一次快速滚动到最左边 监听不到滚动位置的问题
+        if (this._currentContentOffset != 0 && this._currentContentOffset === this._scrollEndOffset) {
             return;
         }
 
