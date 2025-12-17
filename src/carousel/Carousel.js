@@ -996,7 +996,9 @@ export default class Carousel extends Component {
                 }
             } else {
                 // Snap to current
-                this._snapToItem(this._scrollEndActive);
+                let next = this._scrollEndActive;
+                this._enableLoop() && next === this._positions.length -1 && (next = this.props.loopClonesPerSide)
+                this._snapToItem(next);
             }
         }
     }
