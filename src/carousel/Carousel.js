@@ -818,7 +818,9 @@ export default class Carousel extends Component {
         }
 
         if (nextActiveItem === this._itemToSnapTo &&
-            scrollOffset === this._scrollOffsetRef) {
+            (scrollOffset === this._scrollOffsetRef || 
+                (this._enableLoop() && nextActiveItem === this._positions.length-1 )
+            )) {
             this._repositionScroll(nextActiveItem);
         }
 
@@ -996,9 +998,7 @@ export default class Carousel extends Component {
                 }
             } else {
                 // Snap to current
-                let next = this._scrollEndActive;
-                this._enableLoop() && next === this._positions.length -1 && (next = this.props.loopClonesPerSide)
-                this._snapToItem(next);
+                this._snapToItem(this._scrollEndActive);
             }
         }
     }
