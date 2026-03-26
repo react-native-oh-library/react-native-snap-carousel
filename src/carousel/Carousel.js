@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import { Animated, Easing, FlatList, I18nManager, Platform, ScrollView, View } from 'react-native';
+import { Animated, Easing, FlatList, I18nManager, Platform, ScrollView, View, Dimensions, UIManager, findNodeHandle } from 'react-native';
 import { ViewPropTypes} from 'deprecated-react-native-prop-types';
 import PropTypes from 'prop-types';
 import shallowCompare from 'react-addons-shallow-compare';
@@ -64,6 +64,7 @@ export default class Carousel extends Component {
         slideInterpolatedStyle: PropTypes.func,
         slideStyle: ViewPropTypes ? ViewPropTypes.style : View.propTypes.style,
         shouldOptimizeUpdates: PropTypes.bool,
+        stopAutoplayWhenInvisible: PropTypes.bool,
         swipeThreshold: PropTypes.number,
         useScrollView: PropTypes.oneOfType([PropTypes.bool, PropTypes.func]),
         vertical: PropTypes.bool,
@@ -98,6 +99,7 @@ export default class Carousel extends Component {
         scrollEnabled: true,
         slideStyle: {},
         shouldOptimizeUpdates: true,
+        stopAutoplayWhenInvisible: false,
         swipeThreshold: 20,
         useScrollView: !AnimatedFlatList,
         vertical: false
@@ -128,6 +130,9 @@ export default class Carousel extends Component {
         this._onScrollTriggered = true; // used when momentum is enabled to prevent an issue with edges items
         this._lastScrollDate = 0; // used to work around a FlatList bug
         this._scrollEnabled = props.scrollEnabled !== false;
+        this._isVisible = true;
+        this._visibilityPollInterval = null;
+        this._lastInvisibleThrottleTs = 0;
 
         this._initPositionsAndInterpolators = this._initPositionsAndInterpolators.bind(this);
         this._renderItem = this._renderItem.bind(this);
@@ -184,6 +189,7 @@ export default class Carousel extends Component {
 
         this._mounted = true;
         this._initPositionsAndInterpolators();
+        this._startVisibilityMonitor();
 
         // Without 'requestAnimationFrame' or a `0` timeout, images will randomly not be rendered on Android...
         requestAnimationFrame(() => {
@@ -214,7 +220,7 @@ export default class Carousel extends Component {
 
     componentDidUpdate (prevProps) {
         const { interpolators } = this.state;
-        const { firstItem, itemHeight, itemWidth, scrollEnabled, sliderHeight, sliderWidth } = this.props;
+        const { firstItem, itemHeight, itemWidth, scrollEnabled, sliderHeight, sliderWidth, stopAutoplayWhenInvisible } = this.props;
         const itemsLength = this._getCustomDataLength(this.props);
 
         if (!itemsLength) {
@@ -229,6 +235,7 @@ export default class Carousel extends Component {
         const hasNewItemWidth = itemWidth && itemWidth !== prevProps.itemWidth;
         const hasNewItemHeight = itemHeight && itemHeight !== prevProps.itemHeight;
         const hasNewScrollEnabled = scrollEnabled !== prevProps.scrollEnabled;
+        const hasNewStopAutoplayWhenInvisible = stopAutoplayWhenInvisible !== prevProps.stopAutoplayWhenInvisible;
 
         // Prevent issues with dynamically removed items
         if (nextActiveItem > itemsLength - 1) {
@@ -238,6 +245,16 @@ export default class Carousel extends Component {
         // Handle changing scrollEnabled independent of user -> carousel interaction
         if (hasNewScrollEnabled) {
             this._setScrollEnabled(scrollEnabled);
+        }
+
+        if (hasNewStopAutoplayWhenInvisible) {
+            if (stopAutoplayWhenInvisible) {
+                this._startVisibilityMonitor();
+            } else {
+                this._stopVisibilityMonitor();
+                this._isVisible = true;
+                this._onVisibilityChanged();
+            }
         }
 
         if (interpolators.length !== itemsLength || hasNewSliderWidth ||
@@ -278,6 +295,10 @@ export default class Carousel extends Component {
         clearTimeout(this._snapNoMomentumTimeout);
         clearTimeout(this._edgeItemTimeout);
         clearTimeout(this._lockScrollTimeout);
+        if (this._visibilityPollInterval) {
+            clearInterval(this._visibilityPollInterval);
+            this._visibilityPollInterval = null;
+        }
     }
 
     get realIndex () {
@@ -494,6 +515,70 @@ export default class Carousel extends Component {
 
     _getScrollEnabled () {
         return this._scrollEnabled;
+    }
+
+    _getAutoplayInterval () {
+        const { autoplayInterval, stopAutoplayWhenInvisible } = this.props;
+
+        if (!stopAutoplayWhenInvisible) {
+            return autoplayInterval;
+        }
+
+        return this._isVisible ? autoplayInterval : 3600000;
+    }
+
+    _startVisibilityMonitor () {
+        if (!this.props.stopAutoplayWhenInvisible || this._visibilityPollInterval) {
+            return;
+        }
+
+        this._visibilityPollInterval = setInterval(() => this._updateVisibility(), 10);
+    }
+
+    _stopVisibilityMonitor () {
+        if (this._visibilityPollInterval) {
+            clearInterval(this._visibilityPollInterval);
+            this._visibilityPollInterval = null;
+        }
+    }
+
+    _updateVisibility () {
+        const ref = this._getWrappedRef();
+
+        if (!ref) {
+            return;
+        }
+
+        const handle = findNodeHandle(ref);
+
+        if (!handle) {
+            return;
+        }
+
+        UIManager.measureInWindow(handle, (x, y, width, height) => {
+            const { height: viewportHeight } = Dimensions.get('window');
+            const visible = (y + height) > 0 && y < viewportHeight && height > 0;
+
+            if (visible !== this._isVisible) {
+                this._isVisible = visible;
+                this._onVisibilityChanged();
+            }
+        });
+    }
+
+    _onVisibilityChanged () {
+        if (this._autoplay && this._autoplaying) {
+            clearInterval(this._autoplayInterval);
+            this._autoplayInterval = setInterval(() => {
+                if (this._autoplaying) {
+                    this.snapToNext();
+                }
+            }, this._getAutoplayInterval());
+        }
+
+        if (this._isVisible) {
+            this._lastInvisibleThrottleTs = 0;
+        }
     }
 
     _setScrollEnabled (scrollEnabled = true) {
@@ -1095,7 +1180,7 @@ export default class Carousel extends Component {
     }
 
     startAutoplay () {
-        const { autoplayInterval, autoplayDelay } = this.props;
+        const { autoplayDelay } = this.props;
         this._autoplay = true;
 
         if (this._autoplaying) {
@@ -1109,7 +1194,7 @@ export default class Carousel extends Component {
                 if (this._autoplaying) {
                     this.snapToNext();
                 }
-            }, autoplayInterval);
+            }, this._getAutoplayInterval());
         }, autoplayDelay);
     }
 
@@ -1140,6 +1225,18 @@ export default class Carousel extends Component {
     }
 
     snapToNext (animated = true, fireCallback = true) {
+        const { stopAutoplayWhenInvisible } = this.props;
+
+        if (stopAutoplayWhenInvisible && !this._isVisible) {
+            const now = Date.now();
+
+            if (this._lastInvisibleThrottleTs && now - this._lastInvisibleThrottleTs < 3600000) {
+                return;
+            }
+
+            this._lastInvisibleThrottleTs = now;
+        }
+
         const itemsLength = this._getCustomDataLength();
 
         let newIndex = this._activeItem + 1;
@@ -1153,6 +1250,18 @@ export default class Carousel extends Component {
     }
 
     snapToPrev (animated = true, fireCallback = true) {
+        const { stopAutoplayWhenInvisible } = this.props;
+
+        if (stopAutoplayWhenInvisible && !this._isVisible) {
+            const now = Date.now();
+
+            if (this._lastInvisibleThrottleTs && now - this._lastInvisibleThrottleTs < 3600000) {
+                return;
+            }
+
+            this._lastInvisibleThrottleTs = now;
+        }
+
         const itemsLength = this._getCustomDataLength();
 
         let newIndex = this._activeItem - 1;
